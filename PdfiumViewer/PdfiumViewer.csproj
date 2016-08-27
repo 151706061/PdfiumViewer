@@ -50,6 +50,7 @@
       <SubType>Component</SubType>
     </Compile>
     <Compile Include="HitTest.cs" />
+    <Compile Include="MouseWheelMode.cs" />
     <Compile Include="NativeMethods.cs" />
     <Compile Include="NativeMethods.Pdfium.cs" />
     <Compile Include="NativeTreeView.cs">
@@ -58,20 +59,24 @@
     <Compile Include="PanningZoomingScrollControl.cs">
       <SubType>Component</SubType>
     </Compile>
+    <Compile Include="PasswordForm.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="PasswordForm.Designer.cs">
+      <DependentUpon>PasswordForm.cs</DependentUpon>
+    </Compile>
     <Compile Include="PdfBookmarkCollection.cs" />
+    <Compile Include="PdfError.cs" />
     <Compile Include="PdfException.cs" />
-    <Compile Include="PdfBufferFile.cs" />
     <Compile Include="PdfDocument.cs" />
     <Compile Include="PdfFile.cs" />
-    <Compile Include="PdfFileStreamFile.cs" />
-    <Compile Include="PdfFileHandleFile.cs" />
+    <Compile Include="StreamManager.cs" />
     <Compile Include="PdfPageLink.cs" />
     <Compile Include="PdfPageLinks.cs" />
     <Compile Include="PdfPrintMode.cs" />
     <Compile Include="PdfRenderFlags.cs" />
     <Compile Include="PdfLibrary.cs" />
     <Compile Include="PdfMatch.cs" />
-    <Compile Include="PdfMemoryStreamFile.cs" />
     <Compile Include="PdfPrintDocument.cs">
       <SubType>Component</SubType>
     </Compile>
@@ -114,6 +119,9 @@
     <None Include="Resources\ShadeBorder-NW.png" />
   </ItemGroup>
   <ItemGroup>
+    <EmbeddedResource Include="PasswordForm.resx">
+      <DependentUpon>PasswordForm.cs</DependentUpon>
+    </EmbeddedResource>
     <EmbeddedResource Include="PdfViewer.nl.resx">
       <DependentUpon>PdfViewer.cs</DependentUpon>
     </EmbeddedResource>

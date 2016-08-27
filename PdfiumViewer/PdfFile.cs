@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -7,7 +8,7 @@ using System.Text;
 
 namespace PdfiumViewer
 {
-    internal abstract class PdfFile : IDisposable
+    internal class PdfFile : IDisposable
     {
         private static readonly Encoding FPDFEncoding = new UnicodeEncoding(false, false, false);
 
@@ -16,22 +17,24 @@ namespace PdfiumViewer
         private bool _disposed;
         private NativeMethods.FPDF_FORMFILLINFO _formCallbacks;
         private GCHandle _formCallbacksHandle;
+        private readonly int _id;
+        private Stream _stream;
 
-        public static PdfFile Create(Stream stream)
+        public PdfFile(Stream stream, string password)
         {
             if (stream == null)
-                throw new ArgumentNullException("stream");
+                throw new ArgumentNullException(nameof(stream));
 
-            if (stream is MemoryStream)
-                return new PdfMemoryStreamFile((MemoryStream)stream);
-            if (stream is FileStream)
-                return new PdfFileStreamFile((FileStream)stream);
-            return new PdfBufferFile(StreamExtensions.ToByteArray(stream));
-        }
-
-        protected PdfFile()
-        {
             PdfLibrary.EnsureLoaded();
+
+            _stream = stream;
+            _id = StreamManager.Register(stream);
+
+            var document = NativeMethods.FPDF_LoadCustomDocument(stream, password, _id);
+            if (document == IntPtr.Zero)
+                throw new PdfException((PdfError)NativeMethods.FPDF_GetLastError());
+
+            LoadDocument(document);
         }
 
         public PdfBookmarkCollection Bookmarks { get; private set; }
@@ -150,17 +153,25 @@ namespace PdfiumViewer
 
             for (int i = 0; i < pageCount; i++)
             {
-                double height;
-                double width;
-                NativeMethods.FPDF_GetPageSizeByIndex(_document, i, out width, out height);
-
-                result.Add(new SizeF((float)width, (float)height));
+                result.Add(GetPDFDocInfo(i));
             }
 
             return result;
         }
 
-        public abstract void Save(Stream stream);
+        public SizeF GetPDFDocInfo(int pageNumber)
+        {
+            double height;
+            double width;
+            NativeMethods.FPDF_GetPageSizeByIndex(_document, pageNumber, out width, out height);
+
+            return new SizeF((float)width, (float)height);
+        }
+
+        public void Save(Stream stream)
+        {
+            NativeMethods.FPDF_SaveAsCopy(_document, stream, NativeMethods.FPDF_SAVE_FLAGS.FPDF_NO_INCREMENTAL);
+        }
 
         protected void LoadDocument(IntPtr document)
         {
@@ -220,7 +231,10 @@ namespace PdfiumViewer
             NativeMethods.FPDF_BookmarkGetTitle(bookmark, buffer, length);
 
             string result = Encoding.Unicode.GetString(buffer);
-            return result.Substring(0, result.Length - 1);
+            if (result.Length > 0 && result[result.Length - 1] == 0)
+                result = result.Substring(0, result.Length - 1);
+
+            return result;
         }
 
         private uint GetBookmarkPageIndex(IntPtr bookmark)
@@ -280,6 +294,19 @@ namespace PdfiumViewer
             return new PdfMatches(startPage, endPage, matches);
         }
 
+        public void DeletePage (int pageNumber)
+        {
+            NativeMethods.FPDFPage_Delete(_document, pageNumber);
+        }
+
+        public void RotatePage (int pageNumber, PdfRotation rotation)
+        {
+            using (var pageData = new PageData(_document, _form, pageNumber))
+            {
+                NativeMethods.FPDFPage_SetRotation(pageData.Page, rotation);
+            }
+        }
+
         public void Dispose()
         {
             Dispose(true);
@@ -291,6 +318,8 @@ namespace PdfiumViewer
         {
             if (!_disposed)
             {
+                StreamManager.Unregister(_id);
+
                 if (_form != IntPtr.Zero)
                 {
                     NativeMethods.FORM_DoDocumentAAction(_form, NativeMethods.FPDFDOC_AACTION.WC);
@@ -306,6 +335,12 @@ namespace PdfiumViewer
 
                 if (_formCallbacksHandle.IsAllocated)
                     _formCallbacksHandle.Free();
+
+                if (_stream != null)
+                {
+                    _stream.Dispose();
+                    _stream = null;
+                }
 
                 _disposed = true;
             }

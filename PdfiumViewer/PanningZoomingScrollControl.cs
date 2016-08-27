@@ -9,9 +9,9 @@ namespace PdfiumViewer
 {
     public abstract class PanningZoomingScrollControl : CustomScrollControl
     {
-        private const double ZoomMin = 0.1;
-        private const double ZoomMax = 5;
-        private const double DefaultZoomFactor = 1.2;
+        public const double DefaultZoomMin = 0.1;
+        public const double DefaultZoomMax = 5;
+        public const double DefaultZoomFactor = 1.2;
 
         private static readonly Cursor PanCursor;
 
@@ -29,6 +29,8 @@ namespace PdfiumViewer
         private bool _canPan;
         private Point _dragStart;
         private Point _startOffset;
+        private double _zoomMax;
+        private double _zoomMin;
 
         public event EventHandler ZoomChanged;
 
@@ -52,12 +54,17 @@ namespace PdfiumViewer
             {
                 value = Math.Min(Math.Max(value, ZoomMin), ZoomMax);
 
-                _zoom = value;
-
-                OnZoomChanged(EventArgs.Empty);
-
-                Invalidate();
+                SetZoom(value, null);
             }
+        }
+
+        protected virtual void SetZoom(double value, Point? focus)
+        {
+            _zoom = value;
+
+            OnZoomChanged(EventArgs.Empty);
+
+            Invalidate();
         }
 
         [DefaultValue(DefaultZoomFactor)]
@@ -66,6 +73,30 @@ namespace PdfiumViewer
         protected PanningZoomingScrollControl()
         {
             ZoomFactor = DefaultZoomFactor;
+            _zoomMin = DefaultZoomMin;
+            _zoomMax = DefaultZoomMax;
+        }
+
+        [DefaultValue(DefaultZoomMin)]
+        public double ZoomMin
+        {
+            get { return _zoomMin; }
+            set
+            {
+                _zoomMin = value;
+                Zoom = Zoom;
+            }
+        }
+
+        [DefaultValue(DefaultZoomMax)]
+        public double ZoomMax
+        {
+            get { return _zoomMax; }
+            set
+            {
+                _zoomMax = value;
+                Zoom = Zoom;
+            }
         }
 
         /// <summary>
@@ -84,41 +115,42 @@ namespace PdfiumViewer
             Zoom /= ZoomFactor;
         }
 
+        [DefaultValue(MouseWheelMode.PanAndZoom)]
+        public MouseWheelMode MouseWheelMode { get; set; }
+
         /// <summary>
         /// Raises the <see cref="E:System.Windows.Forms.Control.MouseWheel"/> event.
         /// </summary>
         /// <param name="e">A <see cref="T:System.Windows.Forms.MouseEventArgs"/> that contains the event data. </param>
         protected override void OnMouseWheel(MouseEventArgs e)
         {
-            if ((ModifierKeys & Keys.Control) != 0)
+            bool doZoom;
+
+            switch (MouseWheelMode)
             {
-                var bounds = GetDocumentBounds();
+                case MouseWheelMode.PanAndZoom:
+                    doZoom = (ModifierKeys & Keys.Control) != 0;
+                    break;
+                case MouseWheelMode.Zoom:
+                    doZoom = true;
+                    break;
+                default:
+                    doZoom = false;
+                    break;
+            }
 
-                var location = new Point(
-                    e.Location.X - bounds.X,
-                    e.Location.Y - bounds.Y
-                );
-
-                double oldScale = _zoom;
+            if (doZoom)
+            {
+                double zoom = _zoom;
 
                 if (e.Delta > 0)
-                    ZoomIn();
+                    zoom *= ZoomFactor;
                 else
-                    ZoomOut();
+                    zoom /= ZoomFactor;
 
-                var newLocation = new Point(
-                    (int)(location.X * (_zoom / oldScale)),
-                    (int)(location.Y * (_zoom / oldScale))
-                );
+                zoom = Math.Min(Math.Max(zoom, ZoomMin), ZoomMax);
 
-                SetDisplayRectLocation(
-                    new Point(
-                        DisplayRectangle.Left - (newLocation.X - location.X),
-                        DisplayRectangle.Top - (newLocation.Y - location.Y)
-                    ),
-                    false
-                );
-
+                SetZoom(zoom, e.Location);
             }
             else
             {
@@ -218,15 +250,9 @@ namespace PdfiumViewer
             if (!Capture)
                 return;
 
-            var offset = new Point(
-                e.Location.X - _dragStart.X,
-                e.Location.Y - _dragStart.Y
-            );
+            var offset = new Point(e.Location.X - _dragStart.X, e.Location.Y - _dragStart.Y);
 
-            SetDisplayRectLocation(new Point(
-                _startOffset.X + offset.X,
-                _startOffset.Y + offset.Y
-            ));
+            SetDisplayRectLocation(new Point(_startOffset.X + offset.X, _startOffset.Y + offset.Y));
         }
 
         protected override void OnMouseUp(MouseEventArgs e)

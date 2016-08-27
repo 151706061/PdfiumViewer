@@ -24,12 +24,7 @@ namespace PdfiumViewer.Demo
 
             _zoom.Text = pdfViewer1.Renderer.Zoom.ToString();
 
-            Disposed += (s, e) =>
-            {
-                var document = pdfViewer1.Document;
-                if (document != null)
-                    document.Dispose();
-            };
+            Disposed += (s, e) => pdfViewer1.Document?.Dispose();
         }
 
         void Renderer_ZoomChanged(object sender, EventArgs e)
@@ -48,7 +43,8 @@ namespace PdfiumViewer.Demo
 
             if (args.Length > 1)
             {
-                pdfViewer1.Document = PdfDocument.Load(args[1]);
+                pdfViewer1.Document?.Dispose();
+                pdfViewer1.Document = OpenDocument(args[1]);
                 renderToBitmapsToolStripMenuItem.Enabled = true;
             }
             else
@@ -58,6 +54,19 @@ namespace PdfiumViewer.Demo
 
             _showBookmarks.Checked = pdfViewer1.ShowBookmarks;
             _showToolbar.Checked = pdfViewer1.ShowToolbar;
+        }
+
+        private PdfDocument OpenDocument(string fileName)
+        {
+            try
+            {
+                return PdfDocument.Load(this, fileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return null;
+            }
         }
 
         private void OpenFile()
@@ -74,12 +83,8 @@ namespace PdfiumViewer.Demo
                     return;
                 }
 
-                if (pdfViewer1.Document != null)
-                {
-                    pdfViewer1.Document.Dispose();
-                }
-
-                pdfViewer1.Document = PdfDocument.Load(form.FileName);
+                pdfViewer1.Document?.Dispose();
+                pdfViewer1.Document = OpenDocument(form.FileName);
                 renderToBitmapsToolStripMenuItem.Enabled = true;
             }
         }
@@ -239,6 +244,52 @@ namespace PdfiumViewer.Demo
         private void _hideBookmarks_Click(object sender, EventArgs e)
         {
             pdfViewer1.ShowBookmarks = _showBookmarks.Checked;
+        }
+
+        private void deleteCurrentPageToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            // PdfRenderer does not support changes to the loaded document,
+            // so we fake it by reloading the document into the renderer.
+
+            int page = pdfViewer1.Renderer.Page;
+            var document = pdfViewer1.Document;
+            pdfViewer1.Document = null;
+            document.DeletePage(page);
+            pdfViewer1.Document = document;
+            pdfViewer1.Renderer.Page = page;
+        }
+
+        private void rotate0ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Rotate(PdfRotation.Rotate0);
+        }
+
+        private void rotate90ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Rotate(PdfRotation.Rotate90);
+        }
+
+        private void rotate180ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Rotate(PdfRotation.Rotate180);
+        }
+
+        private void rotate270ToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Rotate(PdfRotation.Rotate270);
+        }
+
+        private void Rotate(PdfRotation rotate)
+        {
+            // PdfRenderer does not support changes to the loaded document,
+            // so we fake it by reloading the document into the renderer.
+
+            int page = pdfViewer1.Renderer.Page;
+            var document = pdfViewer1.Document;
+            pdfViewer1.Document = null;
+            document.RotatePage(page, rotate);
+            pdfViewer1.Document = document;
+            pdfViewer1.Renderer.Page = page;
         }
     }
 }
